@@ -143,6 +143,13 @@ boas.alpha_composite(caber(icone(256), 88, 88), (38, 70))
 boas.alpha_composite(caber(branco, 132, 40), (16, 180))
 boas.convert('RGB').save('admin/win/nsi/welcome.bmp')
 caber(azul, 150, 57, 0.12, (255, 255, 255, 255)).convert('RGB').save('admin/win/nsi/page_header.bmp')
+# bloco do menu Iniciar: o instalador procura theme/<executável>.VisualElementsManifest.xml
+Path(f'theme/{EXE}.VisualElementsManifest.xml').write_text(
+    "<Application xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'>\n"
+    f'  <VisualElements BackgroundColor="{COR_HEX}" ForegroundText="light" ShowNameOnSquare150x150Logo="on"\n'
+    f'    Square150x150Logo="visualelements\\150-{CURTO}-w10startmenu.png"\n'
+    f'    Square70x70Logo="visualelements\\70-{CURTO}-w10startmenu.png"/>\n'
+    '</Application>\n')
 ic.save('admin/win/nsi/installer.ico', sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 print('marca UNODATA Nuvem aplicada')
 for k in ('CFAPI_APPID', 'WIN_MSI_UPGRADE_CODE'):
