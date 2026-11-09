@@ -172,7 +172,7 @@ jobs:
           "conteúdo conferido: unodatadrive.exe e unodatadrivecmd.exe presentes"
           Get-FileHash $destino -Algorithm SHA256 | ForEach-Object { "sha256 $($_.Hash)" }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: unodata-drive-windows
           path: saida\*.exe
