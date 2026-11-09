@@ -111,6 +111,17 @@ jobs:
           $s = $s.Replace('self.applicationExecutable = "nextcloud"', 'self.applicationExecutable = "unodatanuvem"')
           # a receita usa os.path no empacotamento sem importar os (o CI oficial não empacota por aqui)
           if ($s -notmatch '(?m)^import os$') { $s = "import os`n" + $s }
+          # ícone do instalador: o da UNODATA (sem isso sai o craft.ico)
+          $ico = "${{ github.workspace }}\admin\win\nsi\installer.ico".Replace('\', '/')
+          if ($s -notmatch 'defines\["icon"\]') {
+              $s = $s.Replace('self.defines["company"] = "UNODATA"', "self.defines[`"company`"] = `"UNODATA`"`n        self.defines[`"icon`"] = `"$ico`"")
+          }
+          Set-Content -Path $f.FullName -Value $s -NoNewline
+          # a lista de exclusões só deixa passar os .exe chamados nextcloud e nextcloudcmd
+          $bl = Join-Path $f.DirectoryName 'blacklist.txt'
+          (Get-Content $bl -Raw).Replace('(nextcloud|nextcloudcmd|QtWebEngineProcess)', '(unodatanuvem|unodatanuvemcmd|QtWebEngineProcess)') |
+              Set-Content -Path $bl -NoNewline
+          Select-String -Path $bl -Pattern 'unodatanuvem' | ForEach-Object { $_.Line.Trim() }
           Set-Content -Path $f.FullName -Value $s -NoNewline
           Select-String -Path $f.FullName -Pattern 'unodata|UNODATA' | ForEach-Object { $_.Line.Trim() }
 
@@ -134,9 +145,22 @@ jobs:
           $exe = Get-ChildItem -Path "${{ github.workspace }}\${{ env.CRAFT_TARGET }}" -Recurse -Filter *.exe |
                  Where-Object { $_.FullName -match '\\tmp\\' -and $_.LastWriteTime -gt (Get-Date).AddHours(-2) }
           $exe | ForEach-Object { "$($_.FullName)  $([math]::Round($_.Length/1MB,1)) MB" }
+          if (@($exe).Count -ne 1) { throw "esperava 1 instalador, achei $(@($exe).Count)" }
+          $versao = (Select-String -Path "${{ github.workspace }}\VERSION.cmake" -Pattern 'MIRALL_VERSION_(MAJOR|MINOR|PATCH)\s+(\d+)' |
+                     ForEach-Object { $_.Matches[0].Groups[2].Value }) -join '.'
           New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\saida" | Out-Null
-          $exe | Copy-Item -Destination "${{ github.workspace }}\saida\"
-          if (!(Get-ChildItem "${{ github.workspace }}\saida\*.exe")) { throw "nenhum instalador gerado" }
+          $destino = "${{ github.workspace }}\saida\UNODATA-Nuvem-$versao-instalador.exe"
+          Copy-Item $exe.FullName $destino
+          # o instalador tem que levar o executável do app (a lista de exclusões já o removeu uma vez)
+          $t = Join-Path $env:RUNNER_TEMP 'confere'
+          & 7z x -y "-o$t" $destino | Out-Null
+          $interno = Get-ChildItem $t -Filter *.7z | Select-Object -First 1
+          $lista = & 7z l $interno.FullName
+          foreach ($obrigatorio in 'bin\\unodatanuvem\.exe', 'bin\\unodatanuvemcmd\.exe') {
+              if (-not (@($lista) | Select-String $obrigatorio)) { throw "o instalador não tem $obrigatorio" }
+          }
+          "conteúdo conferido: unodatanuvem.exe e unodatanuvemcmd.exe presentes"
+          Get-FileHash $destino -Algorithm SHA256 | ForEach-Object { "sha256 $($_.Hash)" }
 
       - uses: actions/upload-artifact@v4
         with:
