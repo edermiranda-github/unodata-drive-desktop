@@ -1,0 +1,144 @@
+# UNODATA Nuvem: instalador para Windows (derivado do windows-build-and-test.yml oficial da Nextcloud).
+# Roda à mão (Actions > UNODATA Nuvem Windows > Run workflow) ou num push de tag unodata-v*.
+# O instalador sai como artefato do run. Ainda sem assinatura de código (o Windows avisa "editor desconhecido").
+name: UNODATA Nuvem Windows
+on:
+  workflow_dispatch:
+  push:
+    tags: ['unodata-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 300
+    env:
+      CRAFT_TARGET: windows-msvc2022_64-cl
+      CRAFT_MASTER_LOCATION: ${{ github.workspace }}\CraftMaster
+      CRAFT_MASTER_CONFIG: ${{ github.workspace }}\craftmaster.ini
+      PYTHON_VERSION: '3.12'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Revisões das dependências do Craft
+        id: craft-revisions
+        shell: pwsh
+        run: |
+          function configValue($key) {
+              $escapedKey = [regex]::Escape($key)
+              $m = @(Select-String -Path "${{ env.CRAFT_MASTER_CONFIG }}" -Pattern "^\s*$escapedKey\s*=\s*(.+?)\s*$")
+              if($m.Count -ne 1) { throw "Esperava um único $key no craftmaster.ini." }
+              return $m[0].Matches[0].Groups[1].Value.Trim()
+          }
+          $craftRevision = configValue "CraftRevision"
+          $kdeRef = configValue "craft/craft-blueprints-kde.revision"
+          $ncRef = configValue "craft/craft-blueprints-nextcloud.revision"
+          function remoteRevision($repository, $ref) {
+              $r = git ls-remote $repository $ref
+              if($LASTEXITCODE -ne 0 -or !$r) { throw "Não resolvi $ref em $repository." }
+              return ($r -split '\s+')[0]
+          }
+          $kdeRev = remoteRevision "https://github.com/nextcloud/craft-blueprints-kde.git" "refs/heads/$kdeRef"
+          $ncRev = remoteRevision "https://github.com/nextcloud/craft-blueprints-nextcloud.git" "refs/heads/$ncRef"
+          @("kde_ref=$kdeRef", "nextcloud_ref=$ncRef", "key=$craftRevision-$kdeRev-$ncRev") |
+              Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Restaurar dependências do Craft
+        id: craft-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.CRAFT_MASTER_LOCATION }}
+            ${{ env.CRAFT_MASTER_CONFIG }}
+            ${{ github.workspace }}\craft-clone
+            ${{ github.workspace }}\${{ env.CRAFT_TARGET }}
+          key: ${{ runner.os }}-unodata-craft-v1-${{ env.CRAFT_TARGET }}-python-${{ env.PYTHON_VERSION }}-${{ steps.craft-revisions.outputs.key }}
+
+      - name: Instalar o Craft e as dependências
+        if: steps.craft-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          & cmd /C "git clone -q --depth=1 https://github.com/KDE/craftmaster.git ${{ env.CRAFT_MASTER_LOCATION }} 2>&1"
+          function craft() {
+              python "${{ env.CRAFT_MASTER_LOCATION }}\CraftMaster.py" --config "${{ env.CRAFT_MASTER_CONFIG }}" --target ${{ env.CRAFT_TARGET }} -c $args
+              if($LASTEXITCODE -ne 0) {exit $LASTEXITCODE}
+          }
+          craft --add-blueprint-repository "https://github.com/nextcloud/craft-blueprints-kde.git|${{ steps.craft-revisions.outputs.kde_ref }}|"
+          craft --add-blueprint-repository "https://github.com/nextcloud/craft-blueprints-nextcloud.git|${{ steps.craft-revisions.outputs.nextcloud_ref }}|"
+          craft craft
+          craft --install-deps nextcloud-client
+
+      - name: Guardar dependências do Craft
+        if: steps.craft-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.CRAFT_MASTER_LOCATION }}
+            ${{ env.CRAFT_MASTER_CONFIG }}
+            ${{ github.workspace }}\craft-clone
+            ${{ github.workspace }}\${{ env.CRAFT_TARGET }}
+          key: ${{ runner.os }}-unodata-craft-v1-${{ env.CRAFT_TARGET }}-python-${{ env.PYTHON_VERSION }}-${{ steps.craft-revisions.outputs.key }}
+
+      - name: Instalar o Inkscape (gera os ícones a partir dos SVG)
+        shell: pwsh
+        run: choco install inkscape --no-progress -y
+
+      - name: PATH
+        shell: pwsh
+        run: echo "${{ github.workspace }}\${{ env.CRAFT_TARGET }}\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      # a receita do Craft fixa nome, empresa e executável da Nextcloud no instalador: troca pelos da UNODATA
+      - name: Marca no empacotamento
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem -Path "${{ github.workspace }}\${{ env.CRAFT_TARGET }}\etc" -Recurse -Filter nextcloud-client.py |
+               Where-Object { $_.FullName -like '*craft-blueprints-nextcloud*' } | Select-Object -First 1
+          if (!$f) { throw "receita nextcloud-client.py não encontrada" }
+          $s = Get-Content $f.FullName -Raw
+          $s = $s.Replace('self.description = "Nextcloud Desktop Client"', 'self.description = "UNODATA Nuvem"')
+          $s = $s.Replace('self.displayName = "Nextcloud"', 'self.displayName = "UNODATA Nuvem"')
+          $s = $s.Replace('self.webpage = "https://nextcloud.com"', 'self.webpage = "https://www.unodata.com.br"')
+          $s = $s.Replace('self.defines["appname"] = "nextcloud"', 'self.defines["appname"] = "unodatanuvem"')
+          $s = $s.Replace('self.defines["company"] = "Nextcloud GmbH"', 'self.defines["company"] = "UNODATA"')
+          $s = $s.Replace('self.applicationExecutable = "nextcloud"', 'self.applicationExecutable = "unodatanuvem"')
+          Set-Content -Path $f.FullName -Value $s -NoNewline
+          Select-String -Path $f.FullName -Pattern 'unodata|UNODATA' | ForEach-Object { $_.Line.Trim() }
+
+      - name: Compilar
+        shell: pwsh
+        run: |
+          function craft() {
+              python "${{ env.CRAFT_MASTER_LOCATION }}\CraftMaster.py" --config "${{ env.CRAFT_MASTER_CONFIG }}" --target ${{ env.CRAFT_TARGET }} -c $args
+              if($LASTEXITCODE -ne 0) {exit $LASTEXITCODE}
+          }
+          craft --src-dir ${{ github.workspace }} nextcloud-client
+
+      - name: Empacotar o instalador
+        shell: pwsh
+        run: |
+          function craft() {
+              python "${{ env.CRAFT_MASTER_LOCATION }}\CraftMaster.py" --config "${{ env.CRAFT_MASTER_CONFIG }}" --target ${{ env.CRAFT_TARGET }} -c $args
+              if($LASTEXITCODE -ne 0) {exit $LASTEXITCODE}
+          }
+          craft --src-dir ${{ github.workspace }} --package nextcloud-client
+          $exe = Get-ChildItem -Path "${{ github.workspace }}\${{ env.CRAFT_TARGET }}" -Recurse -Filter *.exe |
+                 Where-Object { $_.FullName -match '\\tmp\\' -and $_.LastWriteTime -gt (Get-Date).AddHours(-2) }
+          $exe | ForEach-Object { "$($_.FullName)  $([math]::Round($_.Length/1MB,1)) MB" }
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\saida" | Out-Null
+          $exe | Copy-Item -Destination "${{ github.workspace }}\saida\"
+          if (!(Get-ChildItem "${{ github.workspace }}\saida\*.exe")) { throw "nenhum instalador gerado" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unodata-nuvem-windows
+          path: saida\*.exe
+          if-no-files-found: error
+          retention-days: 30
