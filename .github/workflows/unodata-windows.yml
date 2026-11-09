@@ -112,9 +112,11 @@ jobs:
           # a receita usa os.path no empacotamento sem importar os (o CI oficial não empacota por aqui)
           if ($s -notmatch '(?m)^import os$') { $s = "import os`n" + $s }
           # ícone do instalador: o da UNODATA (sem isso sai o craft.ico)
-          $ico = "${{ github.workspace }}\admin\win\nsi\installer.ico".Replace('\', '/')
+          # caminho nativo (com barra invertida): o File do NSIS não acha o arquivo com D:/...
+          $ico = "${{ github.workspace }}\admin\win\nsi\installer.ico"
+          if (!(Test-Path $ico)) { throw "ícone não encontrado: $ico" }
           if ($s -notmatch 'defines\["icon"\]') {
-              $s = $s.Replace('self.defines["company"] = "UNODATA"', "self.defines[`"company`"] = `"UNODATA`"`n        self.defines[`"icon`"] = `"$ico`"")
+              $s = $s.Replace('self.defines["company"] = "UNODATA"', "self.defines[`"company`"] = `"UNODATA`"`n        self.defines[`"icon`"] = r`"$ico`"")
           }
           Set-Content -Path $f.FullName -Value $s -NoNewline
           # a lista de exclusões só deixa passar os .exe chamados nextcloud e nextcloudcmd
