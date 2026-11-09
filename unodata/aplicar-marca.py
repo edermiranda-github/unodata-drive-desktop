@@ -39,11 +39,16 @@ def troca(caminho, pares):
     p = Path(caminho)
     s = p.read_text(encoding='utf-8')
     for padrao, novo in pares:
-        s2 = re.sub(padrao, novo, s, flags=re.M)
-        if s2 == s and novo not in s:
-            raise SystemExit(f'{caminho}: não achei {padrao!r}')
-        s = s2
+        # sem casamento = já aplicado (rodar de novo) ou o código oficial mudou: a conferência no fim decide
+        s = re.sub(padrao, novo, s, flags=re.M)
     p.write_text(s, encoding='utf-8')
+
+
+def confere(caminho, *trechos):
+    s = Path(caminho).read_text(encoding='utf-8')
+    faltando = [t for t in trechos if t not in s]
+    if faltando:
+        raise SystemExit(f'{caminho}: marca incompleta, falta {faltando} (o código oficial mudou? ajustar os padrões)')
 
 
 # ---------- configuração ----------
@@ -78,6 +83,10 @@ troca('CMakeLists.txt', [
     (r'(option\( WIZARD_HIDE_SELF_HOST_BUTTON "[^"]*" )OFF \)', r'\1ON )'),
     (r'(option\( WIZARD_HIDE_SIGNUP_BUTTON "[^"]*" )OFF \)', r'\1ON )'),
 ])
+
+confere('NEXTCLOUD.cmake', f'"{NOME}"', f'"{CURTO}"', f'"{EXE}"', '"UNODATA"', 'unodata.com.br/nuvem/atualizacoes',
+        'BUILD_UPDATER "Build updater" OFF', COR_HEX, guid('WIN_SHELLEXT_CONTEXT_MENU_GUID'), guid('WIN_MSI_UPGRADE_CODE'))
+confere('CMakeLists.txt', guid('CFAPI_APPID'), guid('CFAPI_STATE'), guid('CFAPI_THUMB'), 'WIZARD_HIDE_SIGNUP_BUTTON "Hide the Sign up button in the account setup wizard" ON')
 
 # ---------- arte ----------
 
