@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Aplica a marca UNODATA Nuvem sobre o código oficial do app de desktop da Nextcloud (GPL-2.0).
+"""Aplica a marca UNODATA Drive sobre o código oficial do app de desktop da Nextcloud (GPL-2.0).
 
 Uso (na raiz do código do nextcloud/desktop, numa tag de versão):
     python3 ../unodata/aplicar-marca.py
 Idempotente. Para uma versão nova: checkout da tag nova, rodar de novo, conferir o diff, compilar.
 
 O que muda (e por quê):
-- NEXTCLOUD.cmake: nome "UNODATA Nuvem", executável unodatanuvem, fabricante UNODATA, cor #2074BA.
+- NEXTCLOUD.cmake: nome "UNODATA Drive", executável unodatadrive, fabricante UNODATA, cor #2074BA.
   "Nextcloud" é marca registrada: o app com marca não pode usar o nome.
 - Atualização automática DESLIGADA (BUILD_UPDATER OFF, URL vazia): a padrão buscaria o instalador
   da Nextcloud em updates.nextcloud.org e trocaria o nosso app pelo deles.
@@ -27,7 +27,9 @@ from PIL import Image, ImageDraw
 ARTE = Path('/home/unodata/projetos/nextcloud/branding/logoheader.png')  # wordmark "unodata" de origem
 COR = (0x20, 0x74, 0xBA)
 COR_HEX = '#2074BA'
-NOME, CURTO, EXE = 'UNODATA Nuvem', 'UNODATANuvem', 'unodatanuvem'
+NOME, CURTO, EXE = 'UNODATA Drive', 'UNODATADrive', 'unodatadrive'
+REV = 'drive'  # br.com.unodata.drive, unodata.com.br/drive/atualizacoes
+ANTIGOS = ('UNODATANuvem', 'unodatanuvem')  # nome anterior (2026-11-09): arquivos dele saem da árvore
 NS = uuid.UUID('6f1c1d1e-2b3a-4c5d-8e9f-0a1b2c3d4e5f')  # base fixa: os GUIDs não mudam entre compilações
 
 
@@ -53,17 +55,17 @@ def confere(caminho, *trechos):
 
 # ---------- configuração ----------
 troca('NEXTCLOUD.cmake', [
-    (r'(else\(\)\n\s*set\( APPLICATION_NAME\s+)"Nextcloud"', rf'\1"{NOME}"'),
-    (r'(else\(\)\n(?:.*\n)*?\s*set\( APPLICATION_SHORTNAME\s+)"Nextcloud"', rf'\1"{CURTO}"'),
-    (r'(else\(\)\n(?:.*\n)*?\s*set\( APPLICATION_EXECUTABLE\s+)"nextcloud"', rf'\1"{EXE}"'),
+    (r'(else\(\)\n\s*set\( APPLICATION_NAME\s+)"(?:Nextcloud|UNODATA [^"]+)"', rf'\1"{NOME}"'),
+    (r'(else\(\)\n(?:.*\n)*?\s*set\( APPLICATION_SHORTNAME\s+)"(?:Nextcloud|UNODATA\w+)"', rf'\1"{CURTO}"'),
+    (r'(else\(\)\n(?:.*\n)*?\s*set\( APPLICATION_EXECUTABLE\s+)"(?:nextcloud|unodata\w+)"', rf'\1"{EXE}"'),
     (r'set\( APPLICATION_DOMAIN\s+"nextcloud.com" \)', 'set( APPLICATION_DOMAIN     "unodata.com.br" )'),
     (r'set\( APPLICATION_VENDOR\s+"Nextcloud GmbH" \)', 'set( APPLICATION_VENDOR     "UNODATA" )'),
-    (r'set\( APPLICATION_UPDATE_URL\s+"https://updates.nextcloud.org/client/"', 'set( APPLICATION_UPDATE_URL "https://www.unodata.com.br/nuvem/atualizacoes/"'),
+    (r'set\( APPLICATION_UPDATE_URL\s+"https://(?:updates.nextcloud.org/client|www.unodata.com.br/\w+/atualizacoes)/"', f'set( APPLICATION_UPDATE_URL "https://www.unodata.com.br/{REV}/atualizacoes/"'),
     (r'set\( APPLICATION_HELP_URL\s+""', 'set( APPLICATION_HELP_URL   "https://www.unodata.com.br"'),
-    (r'set\( APPLICATION_REV_DOMAIN "com.nextcloud.desktopclient" \)', 'set( APPLICATION_REV_DOMAIN "br.com.unodata.nuvem" )'),
-    (r'set\( APPLICATION_REV_DOMAIN_DBUS "desktopclient.nextcloud.com" \)', 'set( APPLICATION_REV_DOMAIN_DBUS "nuvem.unodata.com.br" )'),
+    (r'set\( APPLICATION_REV_DOMAIN "(?:com.nextcloud.desktopclient|br.com.unodata.\w+)" \)', f'set( APPLICATION_REV_DOMAIN "br.com.unodata.{REV}" )'),
+    (r'set\( APPLICATION_REV_DOMAIN_DBUS "(?:desktopclient.nextcloud.com|\w+.unodata.com.br)" \)', f'set( APPLICATION_REV_DOMAIN_DBUS "{REV}.unodata.com.br" )'),
     (r'set\( APPLICATION_VIRTUALFILE_SUFFIX "nextcloud"', 'set( APPLICATION_VIRTUALFILE_SUFFIX "unodata"'),
-    (r'set\( LINUX_PACKAGE_SHORTNAME "nextcloud" \)', f'set( LINUX_PACKAGE_SHORTNAME "{EXE}" )'),
+    (r'set\( LINUX_PACKAGE_SHORTNAME "(?:nextcloud|unodata\w+)" \)', f'set( LINUX_PACKAGE_SHORTNAME "{EXE}" )'),
     (r'option\( BUILD_UPDATER "Build updater" ON \)', 'option( BUILD_UPDATER "Build updater" OFF )'),
     (r'option\( WITH_PROVIDERS "Build with providers list" ON \)', 'option( WITH_PROVIDERS "Build with providers list" OFF )'),
     (r'set\(NEXTCLOUD_BACKGROUND_COLOR "#0082c9"', f'set(NEXTCLOUD_BACKGROUND_COLOR "{COR_HEX}"'),
@@ -84,11 +86,16 @@ troca('CMakeLists.txt', [
     (r'(option\( WIZARD_HIDE_SIGNUP_BUTTON "[^"]*" )OFF \)', r'\1ON )'),
 ])
 
-confere('NEXTCLOUD.cmake', f'"{NOME}"', f'"{CURTO}"', f'"{EXE}"', '"UNODATA"', 'unodata.com.br/nuvem/atualizacoes',
+confere('NEXTCLOUD.cmake', f'"{NOME}"', f'"{CURTO}"', f'"{EXE}"', '"UNODATA"', f'unodata.com.br/{REV}/atualizacoes', f'br.com.unodata.{REV}',
         'BUILD_UPDATER "Build updater" OFF', COR_HEX, guid('WIN_SHELLEXT_CONTEXT_MENU_GUID'), guid('WIN_MSI_UPGRADE_CODE'))
 confere('CMakeLists.txt', guid('CFAPI_APPID'), guid('CFAPI_STATE'), guid('CFAPI_THUMB'), 'WIZARD_HIDE_SIGNUP_BUTTON "Hide the Sign up button in the account setup wizard" ON')
 
 # ---------- arte ----------
+# arquivos com o nome anterior: o CMake procura só os do nome atual, os antigos viram lixo
+for velho in ANTIGOS:
+    for f in list(Path('theme').rglob(f'{velho}*')) + list(Path('theme').rglob(f'*-{velho}-*')):
+        if f.is_file():
+            f.unlink()
 
 
 def bbox(im):
@@ -160,6 +167,6 @@ Path(f'theme/{EXE}.VisualElementsManifest.xml').write_text(
     f'    Square70x70Logo="visualelements\\70-{CURTO}-w10startmenu.png"/>\n'
     '</Application>\n')
 ic.save('admin/win/nsi/installer.ico', sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-print('marca UNODATA Nuvem aplicada')
+print(f'marca {NOME} aplicada')
 for k in ('CFAPI_APPID', 'WIN_MSI_UPGRADE_CODE'):
     print(f'  {k}: {guid(k)}')

@@ -1,7 +1,7 @@
-# UNODATA Nuvem: instalador para Windows (derivado do windows-build-and-test.yml oficial da Nextcloud).
-# Roda à mão (Actions > UNODATA Nuvem Windows > Run workflow) ou num push de tag unodata-v*.
+# UNODATA Drive: instalador para Windows (derivado do windows-build-and-test.yml oficial da Nextcloud).
+# Roda à mão (Actions > UNODATA Drive Windows > Run workflow) ou num push de tag unodata-v*.
 # O instalador sai como artefato do run. Ainda sem assinatura de código (o Windows avisa "editor desconhecido").
-name: UNODATA Nuvem Windows
+name: UNODATA Drive Windows
 on:
   workflow_dispatch:
   push:
@@ -103,12 +103,12 @@ jobs:
                Where-Object { $_.FullName -like '*craft-blueprints-nextcloud*' } | Select-Object -First 1
           if (!$f) { throw "receita nextcloud-client.py não encontrada" }
           $s = Get-Content $f.FullName -Raw
-          $s = $s.Replace('self.description = "Nextcloud Desktop Client"', 'self.description = "UNODATA Nuvem"')
-          $s = $s.Replace('self.displayName = "Nextcloud"', 'self.displayName = "UNODATA Nuvem"')
+          $s = $s.Replace('self.description = "Nextcloud Desktop Client"', 'self.description = "UNODATA Drive"')
+          $s = $s.Replace('self.displayName = "Nextcloud"', 'self.displayName = "UNODATA Drive"')
           $s = $s.Replace('self.webpage = "https://nextcloud.com"', 'self.webpage = "https://www.unodata.com.br"')
-          $s = $s.Replace('self.defines["appname"] = "nextcloud"', 'self.defines["appname"] = "unodatanuvem"')
+          $s = $s.Replace('self.defines["appname"] = "nextcloud"', 'self.defines["appname"] = "unodatadrive"')
           $s = $s.Replace('self.defines["company"] = "Nextcloud GmbH"', 'self.defines["company"] = "UNODATA"')
-          $s = $s.Replace('self.applicationExecutable = "nextcloud"', 'self.applicationExecutable = "unodatanuvem"')
+          $s = $s.Replace('self.applicationExecutable = "nextcloud"', 'self.applicationExecutable = "unodatadrive"')
           # a receita usa os.path no empacotamento sem importar os (o CI oficial não empacota por aqui)
           if ($s -notmatch '(?m)^import os$') { $s = "import os`n" + $s }
           # ícone do instalador: o da UNODATA (sem isso sai o craft.ico)
@@ -124,14 +124,14 @@ jobs:
                      ForEach-Object { $_.Matches[0].Groups[2].Value }) -join '.'
           if ($versao -notmatch '^\d+\.\d+\.\d+$') { throw "versão não lida do VERSION.cmake: '$versao'" }
           if ($s -notmatch 'defines\["executable"\]') {
-              $s = $s.Replace('self.defines["company"] = "UNODATA"', "self.defines[`"company`"] = `"UNODATA`"`n        self.defines[`"executable`"] = r`"bin\unodatanuvem.exe`"`n        self.defines[`"version`"] = `"$versao`"")
+              $s = $s.Replace('self.defines["company"] = "UNODATA"', "self.defines[`"company`"] = `"UNODATA`"`n        self.defines[`"executable`"] = r`"bin\unodatadrive.exe`"`n        self.defines[`"version`"] = `"$versao`"")
           }
           Set-Content -Path $f.FullName -Value $s -NoNewline
           # a lista de exclusões só deixa passar os .exe chamados nextcloud e nextcloudcmd
           $bl = Join-Path $f.DirectoryName 'blacklist.txt'
-          (Get-Content $bl -Raw).Replace('(nextcloud|nextcloudcmd|QtWebEngineProcess)', '(unodatanuvem|unodatanuvemcmd|QtWebEngineProcess)') |
+          (Get-Content $bl -Raw).Replace('(nextcloud|nextcloudcmd|QtWebEngineProcess)', '(unodatadrive|unodatadrivecmd|QtWebEngineProcess)') |
               Set-Content -Path $bl -NoNewline
-          Select-String -Path $bl -Pattern 'unodatanuvem' | ForEach-Object { $_.Line.Trim() }
+          Select-String -Path $bl -Pattern 'unodatadrive' | ForEach-Object { $_.Line.Trim() }
           Set-Content -Path $f.FullName -Value $s -NoNewline
           Select-String -Path $f.FullName -Pattern 'unodata|UNODATA' | ForEach-Object { $_.Line.Trim() }
 
@@ -159,22 +159,22 @@ jobs:
           $versao = (Select-String -Path "${{ github.workspace }}\VERSION.cmake" -Pattern 'MIRALL_VERSION_(MAJOR|MINOR|PATCH)\s+(\d+)' |
                      ForEach-Object { $_.Matches[0].Groups[2].Value }) -join '.'
           New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\saida" | Out-Null
-          $destino = "${{ github.workspace }}\saida\UNODATA-Nuvem-$versao-instalador.exe"
+          $destino = "${{ github.workspace }}\saida\UNODATA-Drive-$versao-instalador.exe"
           Copy-Item $exe.FullName $destino
           # o instalador tem que levar o executável do app (a lista de exclusões já o removeu uma vez)
           $t = Join-Path $env:RUNNER_TEMP 'confere'
           & 7z x -y "-o$t" $destino | Out-Null
           $interno = Get-ChildItem $t -Filter *.7z | Select-Object -First 1
           $lista = & 7z l $interno.FullName
-          foreach ($obrigatorio in 'bin\\unodatanuvem\.exe', 'bin\\unodatanuvemcmd\.exe') {
+          foreach ($obrigatorio in 'bin\\unodatadrive\.exe', 'bin\\unodatadrivecmd\.exe') {
               if (-not (@($lista) | Select-String $obrigatorio)) { throw "o instalador não tem $obrigatorio" }
           }
-          "conteúdo conferido: unodatanuvem.exe e unodatanuvemcmd.exe presentes"
+          "conteúdo conferido: unodatadrive.exe e unodatadrivecmd.exe presentes"
           Get-FileHash $destino -Algorithm SHA256 | ForEach-Object { "sha256 $($_.Hash)" }
 
       - uses: actions/upload-artifact@v4
         with:
-          name: unodata-nuvem-windows
+          name: unodata-drive-windows
           path: saida\*.exe
           if-no-files-found: error
           retention-days: 30

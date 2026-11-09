@@ -1,4 +1,4 @@
-# UNODATA Nuvem (app de sincronização para Windows)
+# UNODATA Drive (app de sincronização para Windows)
 
 App de desktop da Nextcloud com a marca da UNODATA, para os clientes da nuvem operada pela UNODATA.
 Código oficial em https://github.com/nextcloud/desktop (GPL-2.0), versão de base indicada no commit.
