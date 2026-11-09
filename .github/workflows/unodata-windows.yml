@@ -109,6 +109,8 @@ jobs:
           $s = $s.Replace('self.defines["appname"] = "nextcloud"', 'self.defines["appname"] = "unodatanuvem"')
           $s = $s.Replace('self.defines["company"] = "Nextcloud GmbH"', 'self.defines["company"] = "UNODATA"')
           $s = $s.Replace('self.applicationExecutable = "nextcloud"', 'self.applicationExecutable = "unodatanuvem"')
+          # a receita usa os.path no empacotamento sem importar os (o CI oficial não empacota por aqui)
+          if ($s -notmatch '(?m)^import os$') { $s = "import os`n" + $s }
           Set-Content -Path $f.FullName -Value $s -NoNewline
           Select-String -Path $f.FullName -Pattern 'unodata|UNODATA' | ForEach-Object { $_.Line.Trim() }
 
