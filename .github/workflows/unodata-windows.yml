@@ -118,6 +118,14 @@ jobs:
           if ($s -notmatch 'defines\["icon"\]') {
               $s = $s.Replace('self.defines["company"] = "UNODATA"', "self.defines[`"company`"] = `"UNODATA`"`n        self.defines[`"icon`"] = r`"$ico`"")
           }
+          # sem "executable" o empacotador do Craft não cria atalho no menu Iniciar;
+          # sem "version" o Programas instalados mostra "main" (nome do ramo) no lugar da versão
+          $versao = (Select-String -Path "${{ github.workspace }}\VERSION.cmake" -Pattern 'MIRALL_VERSION_(MAJOR|MINOR|PATCH)\s+(\d+)' |
+                     ForEach-Object { $_.Matches[0].Groups[2].Value }) -join '.'
+          if ($versao -notmatch '^\d+\.\d+\.\d+$') { throw "versão não lida do VERSION.cmake: '$versao'" }
+          if ($s -notmatch 'defines\["executable"\]') {
+              $s = $s.Replace('self.defines["company"] = "UNODATA"', "self.defines[`"company`"] = `"UNODATA`"`n        self.defines[`"executable`"] = r`"bin\unodatanuvem.exe`"`n        self.defines[`"version`"] = `"$versao`"")
+          }
           Set-Content -Path $f.FullName -Value $s -NoNewline
           # a lista de exclusões só deixa passar os .exe chamados nextcloud e nextcloudcmd
           $bl = Join-Path $f.DirectoryName 'blacklist.txt'
